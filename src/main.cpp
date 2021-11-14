@@ -5,29 +5,67 @@
 #define rs485Comunication 3 // Define porta de que define o estado da comunicação rs485
 
 bool test = true;
-byte pkgToSend[5];
+
+struct CFP
+{
+  int operationCodeId; // Codigo de operaco do cfp
+  int receivedPkgSize; // Tamanho do pacote recebido, ele varia de acordo com codigo de operacao
+  int address;
+  byte pkgToSend[5];  // Define globalmente o pacote que irá ser enviado;
+};
+
+CFP cfpComponet; // Criado o componete cfp para controle;
+
 
 /** ------------ Envio de pacotes -------------------- **/
+/**
+ * Função que recebe o identificador e retorna o byte hex codigo  de operaçao cfp
+ **/
+byte getCfpOperationCodeHex() {
+  byte cfpHexCode;
+  /** Switch que define codigo de operacao cfp **/
+  switch (cfpComponet.operationCodeId)
+  {
+    case 1: // id: 1 - Ler Modo de funcionamento
+      cfpHexCode = 0x01;
+      break;
+    case 2: // id: 2 - Ler Contagem
+      cfpHexCode = 0x02;
+      break;  
+    case 3: // id: 3 - Zerar contagem
+      cfpHexCode = 0x03;
+      break;  
+    case 4: // id: 4 - Zerar só as totalizações
+      cfpHexCode = 0x04;
+      break; 
+    case 6: // id: 6 - Ping
+      cfpHexCode = 0x0A;
+      break;  
+    default:
+      cfpHexCode = 0xFF; // Default, caso inválido
+      break;
+  }
+
+  return cfpHexCode;
+}
 
 /**
  * Função que recebe o endereço do cfp e um id de codigo de operaco cfp 
 **/
-void makePkg(int cfpAddress, int cfpOperationCodeId) {
-  pkgToSend[0] = 0x80; // byte inicial, padrão no inicio do pacote;
-  pkgToSend[1] = cfpAddress; // byte de endereço do cfp;
-  pkgToSend[2] = 0x01; // tamanho, valor padrao para buffer que vamos mandar ao cfp;
+void makePkg() {
+  byte checkSum;
 
-  /** Switch que define codigo de operacao cfp **/
-  switch (cfpOperationCodeId)
-  {
-    case 1: // id: 1 - Ler Modo de funcionamento
-      pkgToSend[3] = 0x80;
-      break;
-    default:
-      break;
+  cfpComponet.pkgToSend[0] = 0x80; // byte inicial, padrão no inicio do pacote;
+  cfpComponet.pkgToSend[1] = cfpComponet.address; // byte de endereço do cfp;
+  cfpComponet.pkgToSend[2] = 0x01; // tamanho, valor padrao para buffer que vamos mandar ao cfp;
+  cfpComponet.pkgToSend[3] = getCfpOperationCodeHex(); // Uso da função auxiliar para pegar o codigo operacional em HEX
+  
+  for (byte i = 0; i < sizeof( cfpComponet.pkgToSend); i++)
+  { 
+    checkSum = checkSum +  cfpComponet.pkgToSend[i];  
   }
-
-  pkgToSend[4] = 0x0D; //checksum
+  
+   cfpComponet.pkgToSend[4] = checkSum; //checksum
 }
 
 /**
@@ -37,10 +75,10 @@ void sendPkg() {
   Serial.println("Start send pkg.");
   digitalWrite(rs485Comunication, HIGH);
   
-  for (byte i = 0; i < sizeof(pkgToSend); i++)
+  for (byte i = 0; i < sizeof(cfpComponet.pkgToSend); i++)
   {
-    Serial1.write(pkgToSend[i]); // Envio de cada bit da mensagem
-    Serial.println(pkgToSend[i], HEX);
+    Serial1.write(cfpComponet.pkgToSend[i]); // Envio de cada bit da mensagem
+    Serial.println(cfpComponet.pkgToSend[i], HEX);
   }
 
   Serial1.flush();
@@ -70,7 +108,8 @@ void serialEvent1() {
 void timerCallback()
 {
   Timer1.stop();
-   
+  
+
   Serial.println("End package:");
   Serial.println("-------------------");
 }
@@ -97,12 +136,15 @@ void setup() {
 **/
 void loop() {
   if (test)
-  {                                                     
-    makePkg(18, 1);
+  {           
+    cfpComponet.operationCodeId = 3;                                          
+    cfpComponet.address = 9;                                          
+    makePkg();
     sendPkg();
   }
   
   test = false;
-   digitalWrite(rs485Comunication, LOW); // Define por padrão esperar pacotes 
+  digitalWrite(rs485Comunication, LOW); // Define por padrão esperar pacotes 
 }
 /** ------------------------------ **/
+
