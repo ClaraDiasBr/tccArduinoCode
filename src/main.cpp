@@ -4,13 +4,14 @@
 #define byteExpiresTimer 16040 // Define o timer para 8,020 milisegundos o dobro do tempo de tramissão rs485
 #define rs485Comunication 3 // Define porta de que define o estado da comunicação rs485
 
-bool test = true;
+bool testButtonState;
+int testButton = 7;
 
 struct CFP
 {
   int operationCodeId; // Codigo de operaco do cfp
   int address;
-  int receivedByteIndex = 0;
+  byte receivedByteIndex = 0;
   byte pkgToSend[5];  // Define globalmente o pacote que irá ser enviado;
   byte pkgReceived[10]; // Define globalmente o pacote que irá ser recebido;
 };
@@ -69,11 +70,18 @@ void makePkg() {
    cfpComponet.pkgToSend[4] = checkSum; //checksum
 }
 
+void clearSenderPackage() {
+  for (byte i = 0; i < sizeof(cfpComponet.pkgToSend); i++)
+  {
+    cfpComponet.pkgToSend[i] = (char)0;;
+  }
+}
+
 /**
  * Funcão que envia o pacote ao cfp
 **/
 void sendPkg() {
-  Serial.println("Start send pkg.");
+  Serial.println("Send pkg.");
   digitalWrite(rs485Comunication, HIGH);
   
   for (byte i = 0; i < sizeof(cfpComponet.pkgToSend); i++)
@@ -82,9 +90,10 @@ void sendPkg() {
     Serial.println(cfpComponet.pkgToSend[i], HEX);
   }
 
+  Serial.println("---------------");
   Serial1.flush();
-
-  // Timer1.initialize(byteExpiresTimer); // Inicia o timer que aguarda o pacote de resposta
+   digitalWrite(rs485Comunication, LOW);
+  Timer1.start();
 };
 /** --------------------  -------------------- **/
 
@@ -97,16 +106,15 @@ void serialEvent1() {
   byte incomingByte;
   
   incomingByte = Serial1.read();
-  
+  Serial.println("Received byte");
+  Serial.println(incomingByte, HEX);
   cfpComponet.pkgReceived[cfpComponet.receivedByteIndex] = incomingByte; // Adiciona na posição atual o byte recebido
 
-  Serial.println("New byte:");
-  Serial.println(incomingByte, HEX);
-
   cfpComponet.receivedByteIndex += 1; // Espera o próximo byte;
-  Timer1.initialize(byteExpiresTimer);
+  
 }
 /** ------------------------------ **/
+
 
 /**
  * Função timerCallback
@@ -114,13 +122,7 @@ void serialEvent1() {
  **/
 void timerCallback()
 {
-  Timer1.stop();
-
-  Serial.println("End package:");
-  Serial.println("-------------------");
-
-  cfpComponet.receivedByteIndex = 0; // Zera o index para novo pacote;
-
+  Timer1.stop(); 
 
   Serial.println("Package received:");
   for (byte i = 0; i < sizeof(cfpComponet.pkgReceived); i++)
@@ -128,23 +130,27 @@ void timerCallback()
     Serial.println(cfpComponet.pkgReceived[i], HEX);
   }
   Serial.println("-------------------");
+
+  cfpComponet.receivedByteIndex = 0; // Zera o index para novo pacote; 
+  clearSenderPackage(); 
 }
-
-
 /** ------------      -------------------- **/
-
 
 /**
  * Arduino setup 
 **/
 void setup() {
+  Timer1.initialize();
+  Timer1.setPeriod(byteExpiresTimer);
+  Timer1.attachInterrupt(timerCallback);  // Define a função que irá ser executada a cada fim de espera do pacote 
+  
   Serial.begin(9600);
   Serial1.begin(9600); 
 
   pinMode(rs485Comunication, OUTPUT); // Define a porta que manipula a recebimento e envio de msgs RS485
   digitalWrite(rs485Comunication, LOW); // Define por padrão esperar pacotes 
-  
-  Timer1.attachInterrupt(timerCallback);  // Define a função que irá ser executada a cada fim de espera do pacote
+
+  pinMode(testButton, INPUT);
 }
 /** ------------------------------ **/
 
@@ -152,16 +158,16 @@ void setup() {
  * Arduino Loop 
 **/
 void loop() {
-  if (test)
-  {           
-    cfpComponet.operationCodeId = 3;                                          
-    cfpComponet.address = 9;                                          
+  testButtonState = digitalRead(testButton);
+
+  if (testButtonState)
+  {
+    cfpComponet.operationCodeId = 1;                                          
+    cfpComponet.address = 5;                                          
     makePkg();
-    sendPkg();
+    sendPkg();              
   }
   
-
-  test = false;
   digitalWrite(rs485Comunication, LOW); // Define por padrão esperar pacotes 
 }
 /** ------------------------------ **/
