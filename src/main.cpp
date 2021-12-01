@@ -1,5 +1,11 @@
+
 #include <Arduino.h>
 #include "TimerOne.h" // Biblioteca usada para o timer
+
+// Programa: Comunicação RS485  Arduino com CFP-100
+// Autor: João Luz & Maria do Prado
+// Data: 11/30/2021
+// Versão: 0.0.1 
 
 #define byteExpiresTimer 8040 // Define o timer para 8,040 milisegundos 2x do tempo de tramissão
 
@@ -21,7 +27,10 @@ struct CFP
   int address; // Define globalmente o endereço do cpf
   int sendRetries = 0; // Define globalmente o numero de retentativa de erros
   byte receivedByteIndex = 0; // Define globalmente o index do pacote recebido
-  byte operationCode; // Define globalmente o codigo de operação baseado na documentaça do cfp, hoje temos suporte para: 
+  byte operationCode; /** Define globalmente o codigo de operação baseado na documentaça do cfp, hoje temos suporte para: 
+    0x01 - Ler modo de funcionamento
+    
+  **/
   byte pkgToSend[5];  // Define globalmente o pacote que irá ser enviado;
   byte pkgReceived[10]; // Define globalmente o pacote que irá ser recebido;
 };
