@@ -6,25 +6,22 @@
 #define rs485Comunication 3 // Define porta de que define o estado da comunicação rs485
 
 // button configs -----
-// the following variables are unsigned longs because the time, measured in
-// milliseconds, will quickly become a bigger number than can be stored in an int.
 unsigned long lastDebounceTime = 0;  // the last time the output pin was toggled
 unsigned long debounceDelay = 50;    // the debounce time; increase if the output flickers
 int testButton = 7;
-int buttonState;             // the current reading from the input pin
+int buttonState;           
 int lastButtonState = LOW; 
 /**--------------- **/
 
 
-bool stillWaitNextByte = true;
+bool stillWaitNextBit = true; // Variavel de controle de espera do proximo bit
 
 struct CFP
 {
-  int operationCodeId; // Codigo de operaco do cfp
-  int address;
-  int sendRetries = 0;
-  byte receivedByteIndex = 0;
-  byte operationCode;
+  int address; // Define globalmente o endereço do cpf
+  int sendRetries = 0; // Define globalmente o numero de retentativa de erros
+  byte receivedByteIndex = 0; // Define globalmente o index do pacote recebido
+  byte operationCode; // Define globalmente o codigo de operação baseado na documentaça do cfp, hoje temos suporte para: 
   byte pkgToSend[5];  // Define globalmente o pacote que irá ser enviado;
   byte pkgReceived[10]; // Define globalmente o pacote que irá ser recebido;
 };
@@ -51,6 +48,9 @@ void makePkg() {
    cfpComponet.pkgToSend[4] = checkSum; //checksum
 }
 
+/**
+ * Função que "limpa" o pacote que iria ser enviado
+**/
 void clearSenderPackage() {
   for (byte i = 0; i < sizeof(cfpComponet.pkgToSend); i++)
   {
@@ -58,6 +58,9 @@ void clearSenderPackage() {
   }
 }
 
+/**
+ * Função que "limpa" o pacote recebido
+**/
 void  clearReceivedPackage() {
   for (byte i = 0; i < sizeof(cfpComponet.pkgToSend); i++)
   {
@@ -68,7 +71,9 @@ void  clearReceivedPackage() {
 }
 
 /**
- * Funcão que envia o pacote ao cfp
+ * Funcão que envia o pacote montado ao cfp, 
+ * Importante:
+ *  Antes de rodar essa função, deve-se definir o address, o operationCode e rodar o método makePkg()
 **/
 void sendPkg() {
   Serial.println("Send pkg.");
@@ -86,7 +91,7 @@ void sendPkg() {
   Serial1.flush();
   digitalWrite(rs485Comunication, LOW);
   
-  stillWaitNextByte = true;
+  stillWaitNextBit = true;
   Timer1.start();
 };
 /** --------------------  -------------------- **/
@@ -99,7 +104,7 @@ void sendPkg() {
 void serialEvent1() {
   byte incomingByte;
 
-  if(stillWaitNextByte) {
+  if(stillWaitNextBit) {
     Serial.println("receiving");
 
     while (Serial1.available())
@@ -112,28 +117,26 @@ void serialEvent1() {
       cfpComponet.receivedByteIndex += 1; // Espera o próximo byte;
     
     }
-    
     Timer1.start();
   }  
-
 }
 /** ------------------------------ **/
 
 /**
- * Funções responsável por fazer 3 tentiavas de envio, se não fazer algo
+ * Funções responsável por fazer 3 tentiavas de envio
  * */
 void retrySendPkgToCfp() {
   if (cfpComponet.sendRetries < 3)
   {   
     sendPkg();
-    digitalWrite(rs485Comunication, LOW);
     cfpComponet.sendRetries++;
   } 
   else
   {
     Serial.println("Max attempts errors");
     cfpComponet.sendRetries = 0;
-    /* do something if 3 errors  */
+
+    /* void() do something after 3 errors  */
   }
   
 }
@@ -144,34 +147,33 @@ void retrySendPkgToCfp() {
  **/
 void timerCallback()
 {
-
   Timer1.stop();
   Serial.println("timer-------");
   Serial.println("Package received:");
-
+ 
   byte auxReceivedBytesSum = 0;
   byte lastValidReceivedByte;
-
+ 
   byte i = 0;
-  while (cfpComponet.pkgReceived[i] != 0x00)
+  while (cfpComponet.pkgReceived[i] != 0x00) // Verifica até onde o pacote é valido, ou seja, não tem o valor 0
   {
     Serial.println(cfpComponet.pkgReceived[i], HEX);
     auxReceivedBytesSum = auxReceivedBytesSum + cfpComponet.pkgReceived[i];
 
     lastValidReceivedByte = cfpComponet.pkgReceived[i];
-    
+
     i++;
   }
  
   Serial.println("-------------------");
-  
-  auxReceivedBytesSum = auxReceivedBytesSum - lastValidReceivedByte; //
 
-  if (auxReceivedBytesSum == lastValidReceivedByte)
+  auxReceivedBytesSum = auxReceivedBytesSum - lastValidReceivedByte; // Subtrai o ultimo valor do pacote da soma de todos os bits, já que o ultimo valor é checkSum.
+  
+  if (auxReceivedBytesSum == lastValidReceivedByte) // Se o checkSum for valido, o pacote recebido faz sentido e está habito a ser utilizado
   {
     Serial.println("valid");
     
-    stillWaitNextByte = false;
+    stillWaitNextBit = false;
     cfpComponet.receivedByteIndex = 0; // Zera o index para novo pacote; 
     
     /** void translate response **/
@@ -198,7 +200,6 @@ void setup() {
   digitalWrite(rs485Comunication, LOW); // Define por padrão esperar pacotes 
 
   pinMode(testButton, INPUT);
-
 }
 /** ------------------------------ **/
 
@@ -206,20 +207,14 @@ void setup() {
  * Arduino Loop 
 **/
 void loop() {
-
-  int reading = digitalRead(testButton);
-  
+  int reading = digitalRead(testButton);  
   if (reading != lastButtonState) {
     // reset the debouncing timer
     lastDebounceTime = millis();
   }
    if ((millis() - lastDebounceTime) > debounceDelay) {
-    // whatever the reading is at, it's been there for longer than the debounce
-    // delay, so take it as the actual current state:
-    // if the button state has changed:
     if (reading != buttonState) {
       buttonState = reading;
-      // only toggle the LED if the new button state is HIGH
       if (buttonState == HIGH) {
         cfpComponet.operationCode = 2;                                          
         cfpComponet.address = 5;                                          
