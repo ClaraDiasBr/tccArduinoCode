@@ -1,23 +1,28 @@
 #include <Arduino.h>
 #include "TimerOne.h" // Biblioteca usada para o timer
 
-#define byteExpiresTimer 1000000 // Define o timer em microsegundos
+#define byteExpiresTimer 8040 // Define o timer para 8,040 milisegundos 2x do tempo de tramissão
+
 #define rs485Comunication 3 // Define porta de que define o estado da comunicação rs485
 
-bool stillWaitNextByte = true;
-
-bool testButtonState = false;
+// button configs -----
+// the following variables are unsigned longs because the time, measured in
+// milliseconds, will quickly become a bigger number than can be stored in an int.
+unsigned long lastDebounceTime = 0;  // the last time the output pin was toggled
+unsigned long debounceDelay = 50;    // the debounce time; increase if the output flickers
 int testButton = 7;
+int buttonState;             // the current reading from the input pin
+int lastButtonState = LOW; 
+/**--------------- **/
 
-bool pkgButtonState = false;
-int seePkgButton = 8;
 
-bool sendTest = true;
+bool stillWaitNextByte = true;
 
 struct CFP
 {
   int operationCodeId; // Codigo de operaco do cfp
   int address;
+  int sendRetries = 0;
   byte receivedByteIndex = 0;
   byte operationCode;
   byte pkgToSend[5];  // Define globalmente o pacote que irá ser enviado;
@@ -26,41 +31,9 @@ struct CFP
 
 CFP cfpComponet; // Criado o componete cfp para controle;
 
-/** ------------ Envio de pacotes -------------------- **/
-// /**
-//  * Função que recebe o identificador e retorna o byte hex codigo  de operaçao cfp
-//  **/
-// byte getCfpOperationCodeHex() {
-//   byte cfpHexCode;
-  
-//   /** Switch que define codigo de operacao cfp **/
-//   switch (cfpComponet.operationCodeId)
-//   {
-//     case 1: // id: 1 - Ler Modo de funcionamento
-//       cfpHexCode = 0x01;
-//       break;
-//     case 2: // id: 2 - Ler Contagem
-//       cfpHexCode = 0x02;
-//       break;  
-//     case 3: // id: 3 - Zerar contagem
-//       cfpHexCode = 0x03;
-//       break;  
-//     case 4: // id: 4 - Zerar só as totalizações
-//       cfpHexCode = 0x04;
-//       break; 
-//     case 6: // id: 6 - Ping
-//       cfpHexCode = 0x0A;
-//       break;  
-//     default:
-//       cfpHexCode = 0xFF; // Default, caso inválido
-//       break;
-//   }
-
-//   return cfpHexCode;
-// }
 
 /**
- * Função que recebe o endereço do cfp e um id de codigo de operaco cfp 
+ * Função que monta o pacote
 **/
 void makePkg() {
   byte checkSum;
@@ -99,10 +72,10 @@ void  clearReceivedPackage() {
 **/
 void sendPkg() {
   Serial.println("Send pkg.");
+  
+  clearReceivedPackage();
   digitalWrite(rs485Comunication, HIGH);
   
-  // clearReceivedPackage();
-
   for (byte i = 0; i < sizeof(cfpComponet.pkgToSend); i++)
   {
     Serial1.write(cfpComponet.pkgToSend[i]); // Envio de cada bit da mensagem
@@ -112,10 +85,9 @@ void sendPkg() {
   Serial.println("---------------");
   Serial1.flush();
   digitalWrite(rs485Comunication, LOW);
-   
- 
+  
   stillWaitNextByte = true;
-  Timer1.restart();
+  Timer1.start();
 };
 /** --------------------  -------------------- **/
 
@@ -129,6 +101,7 @@ void serialEvent1() {
 
   if(stillWaitNextByte) {
     Serial.println("receiving");
+
     while (Serial1.available())
     {
       incomingByte = Serial1.read();
@@ -140,12 +113,30 @@ void serialEvent1() {
     
     }
     
-    Timer1.restart();
+    Timer1.start();
   }  
 
 }
 /** ------------------------------ **/
 
+/**
+ * Funções responsável por fazer 3 tentiavas de envio, se não fazer algo
+ * */
+void retrySendPkgToCfp() {
+  if (cfpComponet.sendRetries < 3)
+  {   
+    sendPkg();
+    digitalWrite(rs485Comunication, LOW);
+    cfpComponet.sendRetries++;
+  } 
+  else
+  {
+    Serial.println("Max attempts errors");
+    cfpComponet.sendRetries = 0;
+    /* do something if 3 errors  */
+  }
+  
+}
 
 /**
  * Função timerCallback
@@ -155,18 +146,39 @@ void timerCallback()
 {
 
   Timer1.stop();
-  
   Serial.println("timer-------");
   Serial.println("Package received:");
-  for (byte i = 0; i < sizeof(cfpComponet.pkgReceived); i++)
+
+  byte auxReceivedBytesSum = 0;
+  byte lastValidReceivedByte;
+
+  byte i = 0;
+  while (cfpComponet.pkgReceived[i] != 0x00)
   {
     Serial.println(cfpComponet.pkgReceived[i], HEX);
+    auxReceivedBytesSum = auxReceivedBytesSum + cfpComponet.pkgReceived[i];
+
+    lastValidReceivedByte = cfpComponet.pkgReceived[i];
+    
+    i++;
   }
+ 
   Serial.println("-------------------");
-
-
-  // cfpComponet.receivedByteIndex = 0; // Zera o index para novo pacote; 
   
+  auxReceivedBytesSum = auxReceivedBytesSum - lastValidReceivedByte; //
+
+  if (auxReceivedBytesSum == lastValidReceivedByte)
+  {
+    Serial.println("valid");
+    
+    stillWaitNextByte = false;
+    cfpComponet.receivedByteIndex = 0; // Zera o index para novo pacote; 
+    
+    /** void translate response **/
+  } else {
+    Serial.println("invalid");
+    retrySendPkgToCfp();
+  }
 }
 /** ------------      -------------------- **/
 
@@ -174,9 +186,8 @@ void timerCallback()
  * Arduino setup 
 **/
 void setup() {
-  Timer1.initialize(1000000UL);
-  
   Timer1.attachInterrupt(timerCallback);  // Define a função que irá ser executada a cada fim de espera do pacote 
+  Timer1.initialize(1000000UL);
   Timer1.stop();
 
   
@@ -187,7 +198,6 @@ void setup() {
   digitalWrite(rs485Comunication, LOW); // Define por padrão esperar pacotes 
 
   pinMode(testButton, INPUT);
-  pinMode(seePkgButton, INPUT);
 
 }
 /** ------------------------------ **/
@@ -197,35 +207,30 @@ void setup() {
 **/
 void loop() {
 
+  int reading = digitalRead(testButton);
   
-  testButtonState = digitalRead(testButton);
-
-  pkgButtonState = digitalRead(seePkgButton);
-
-  if (testButtonState || sendTest)
-  {
-
-    cfpComponet.operationCode = 2;                                          
-    cfpComponet.address = 5;                                          
-    makePkg();
-    sendPkg();         
-
-    sendTest = false;
+  if (reading != lastButtonState) {
+    // reset the debouncing timer
+    lastDebounceTime = millis();
   }
-  
-  
-  if (pkgButtonState)
-  {
-    Serial.println("Package received -  button loop:");
-    for (byte i = 0; i < sizeof(cfpComponet.pkgReceived); i++)
-    {
-      Serial.println(cfpComponet.pkgReceived[i], HEX);
+   if ((millis() - lastDebounceTime) > debounceDelay) {
+    // whatever the reading is at, it's been there for longer than the debounce
+    // delay, so take it as the actual current state:
+    // if the button state has changed:
+    if (reading != buttonState) {
+      buttonState = reading;
+      // only toggle the LED if the new button state is HIGH
+      if (buttonState == HIGH) {
+        cfpComponet.operationCode = 2;                                          
+        cfpComponet.address = 5;                                          
+        makePkg();
+        sendPkg();         
+      }
     }
-    Serial.println("-------------------");
-  
   }
 
   digitalWrite(rs485Comunication, LOW); // Define por padrão esperar pacotes 
+  lastButtonState = reading;
 }
 /** ------------------------------ **/
 
