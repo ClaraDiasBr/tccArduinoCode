@@ -27,12 +27,15 @@ struct CFP
   int address; // Define globalmente o endereço do cpf
   int sendRetries = 0; // Define globalmente o numero de retentativa de erros
   byte receivedByteIndex = 0; // Define globalmente o index do pacote recebido
-  byte operationCode; /** Define globalmente o codigo de operação baseado na documentaça do cfp, hoje temos suporte para: 
-    0x01 - Ler modo de funcionamento
-    
-  **/
+  byte operationCode; // Define globalmente o codigo de operação baseado na documentaça do cfp, hoje temos suporte para: 
+    // 0x01 - Ler modo de funcionamento
+    // 0x02 - Ler contagem
+    // 0x03 - Zerar contagem
+    // 0x04 - Zerar só totalizações
+    // 0x0A - Ping 
   byte pkgToSend[5];  // Define globalmente o pacote que irá ser enviado;
   byte pkgReceived[10]; // Define globalmente o pacote que irá ser recebido;
+  
 };
 
 CFP cfpComponet; // Criado o componete cfp para controle;
