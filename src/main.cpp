@@ -33,55 +33,59 @@ struct CFP
     // 0x03 - Zerar contagem
     // 0x04 - Zerar só totalizações
     // 0x0A - Ping 
+
   byte pkgToSend[5];  // Define globalmente o pacote que irá ser enviado;
   byte pkgReceived[25]; // Define globalmente o pacote que irá ser recebido;
-  String operationMode;
-  int totalIn;
+  
 };
 
-CFP cfpComponet; // Criado o componete cfp para controle;
+CFP cfpComponent; // Criado o componete cfp para controle;
 
-
-/**
- * Função que monta o pacote
-**/
-void makePkg() {
-  byte checkSum;
-
-  cfpComponet.pkgToSend[0] = 0x80; // byte inicial, padrão no inicio do pacote;
-  cfpComponet.pkgToSend[1] = cfpComponet.address; // byte de endereço do cfp;
-  cfpComponet.pkgToSend[2] = 0x01; // tamanho, valor padrao para buffer que vamos mandar ao cfp;
-  cfpComponet.pkgToSend[3] = cfpComponet.operationCode; // Uso da função auxiliar para pegar o codigo operacional em HEX
-  
-  for (byte i = 0; i < sizeof(cfpComponet.pkgToSend) - 1; i++)
-  { 
-    checkSum = checkSum + cfpComponet.pkgToSend[i];  
-  }
-  
-   cfpComponet.pkgToSend[4] = checkSum; //checksum
-}
 
 /**
  * Função que "limpa" o pacote que iria ser enviado
 **/
 void clearSenderPackage() {
-  for (byte i = 0; i < sizeof(cfpComponet.pkgToSend); i++)
+  for (byte i = 0; i < sizeof(cfpComponent.pkgToSend); i++)
   {
-    cfpComponet.pkgToSend[i] = 0x0;
+    cfpComponent.pkgToSend[i] = 0x0;
   }
 }
+
+/**
+ * Função que monta o pacote
+**/
+
+void makePkg() {
+  byte checkSum;
+
+  cfpComponent.pkgToSend[0] = 0x80; // byte inicial, padrão no inicio do pacote;
+  cfpComponent.pkgToSend[1] = cfpComponent.address; // byte de endereço do cfp;
+  cfpComponent.pkgToSend[2] = 0x01; // tamanho, valor padrao para buffer que vamos mandar ao cfp;
+  cfpComponent.pkgToSend[3] = cfpComponent.operationCode; // Uso da função auxiliar para pegar o codigo operacional em HEX
+  
+  for (byte i = 0; i < sizeof(cfpComponent.pkgToSend) - 1; i++)
+  { 
+    checkSum = checkSum + cfpComponent.pkgToSend[i];  
+  }
+  
+   cfpComponent.pkgToSend[4] = checkSum; //checksum
+}
+
+
 
 /**
  * Função que "limpa" o pacote recebido
 **/
 void  clearReceivedPackage() {
-  for (byte i = 0; i < sizeof(cfpComponet.pkgToSend); i++)
+  for (byte i = 0; i < sizeof(cfpComponent.pkgToSend); i++)
   {
-    cfpComponet.pkgReceived[i] = 0x0;
+    cfpComponent.pkgReceived[i] = 0x0;
   }
 
-  cfpComponet.receivedByteIndex = 0;
+  cfpComponent.receivedByteIndex = 0;
 }
+
 
 /**
  * Funcão que envia o pacote montado ao cfp, 
@@ -94,10 +98,10 @@ void sendPkg() {
   clearReceivedPackage();
   digitalWrite(rs485Comunication, HIGH);
   
-  for (byte i = 0; i < sizeof(cfpComponet.pkgToSend); i++)
+  for (byte i = 0; i < sizeof(cfpComponent.pkgToSend); i++)
   {
-    Serial1.write(cfpComponet.pkgToSend[i]); // Envio de cada bit da mensagem
-    Serial.println(cfpComponet.pkgToSend[i], HEX);
+    Serial1.write(cfpComponent.pkgToSend[i]); // Envio de cada bit da mensagem
+    Serial.println(cfpComponent.pkgToSend[i], HEX);
   }
 
   Serial.println("---------------");
@@ -126,8 +130,8 @@ void serialEvent1() {
       Serial.println("Received byte");
       Serial.println(incomingByte, HEX);
       
-      cfpComponet.pkgReceived[cfpComponet.receivedByteIndex] = incomingByte; // Adiciona na posição atual o byte recebido
-      cfpComponet.receivedByteIndex += 1; // Espera o próximo byte;
+      cfpComponent.pkgReceived[cfpComponent.receivedByteIndex] = incomingByte; // Adiciona na posição atual o byte recebido
+      cfpComponent.receivedByteIndex += 1; // Espera o próximo byte;
     
     }
     Timer1.start();
@@ -139,15 +143,15 @@ void serialEvent1() {
  * Funções responsável por fazer 3 tentiavas de envio
  * */
 void retrySendPkgToCfp() {
-  if (cfpComponet.sendRetries < 3)
+  if (cfpComponent.sendRetries < 3)
   {   
     sendPkg();
-    cfpComponet.sendRetries++;
+    cfpComponent.sendRetries++;
   } 
   else
   {
     Serial.println("Max attempts errors");
-    cfpComponet.sendRetries = 0;
+    cfpComponent.sendRetries = 0;
     stillWaitNextBit = false;
     /* void() do something after 3 errors  */
   }
@@ -165,30 +169,30 @@ void timerCallback()
   Serial.println("Package received:");
  
   byte auxReceivedBytesSum = 0;
-  byte lastValidReceivedByte = 0;
+  byte lastValidReceivedBit = 0;
  
-  for (byte i = 0; i < sizeof cfpComponet.pkgReceived; i++)
+  for (byte i = 0; i < sizeof cfpComponent.pkgReceived; i++)
   {
-    Serial.println(cfpComponet.pkgReceived[i], HEX);
-    auxReceivedBytesSum = auxReceivedBytesSum + cfpComponet.pkgReceived[i];
+    Serial.println(cfpComponent.pkgReceived[i], HEX);
+    auxReceivedBytesSum = auxReceivedBytesSum + cfpComponent.pkgReceived[i];
 
-    if (cfpComponet.pkgReceived[i] != 0x00)
+    if (cfpComponent.pkgReceived[i] != 0x00)
     {
-      lastValidReceivedByte = cfpComponet.pkgReceived[i];
+     lastValidReceivedBit = cfpComponent.pkgReceived[i];
     }
   }
 
   Serial.println("-------------------");
   
-  auxReceivedBytesSum = auxReceivedBytesSum - lastValidReceivedByte; // Subtrai o ultimo valor do pacote da soma de todos os bits, já que o ultimo valor é checkSum.
+  auxReceivedBytesSum = auxReceivedBytesSum -lastValidReceivedBit; // Subtrai o ultimo valor do pacote da soma de todos os bits, já que o ultimo valor é checkSum.
 
-  if (auxReceivedBytesSum == lastValidReceivedByte) // Se o checkSum for valido, o pacote recebido faz sentido e está habito a ser utilizado
+  if (auxReceivedBytesSum ==lastValidReceivedBit) // Se o checkSum for valido, o pacote recebido faz sentido e está habito a ser utilizado
   {
     Serial.println("valid");
     
     stillWaitNextBit = false;
-    cfpComponet.receivedByteIndex = 0; // Zera o index para novo pacote; 
-    
+    cfpComponent.receivedByteIndex = 0; // Zera o index para novo pacote; 
+  
     /** void translate response **/
   } else {
     Serial.println("invalid");
@@ -229,8 +233,9 @@ void loop() {
     if (reading != buttonState) {
       buttonState = reading;
       if (buttonState == HIGH) {
-        cfpComponet.operationCode = 2;                                          
-        cfpComponet.address = 5;                                          
+        cfpComponent.address = 4;
+        cfpComponent.operationCode = 0X02;   
+                                                  
         makePkg();
         sendPkg();         
       }
