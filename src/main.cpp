@@ -3,11 +3,11 @@
 #include "TimerOne.h" // Biblioteca usada para o timer
 
 // Programa: Comunicação RS485  Arduino com CFP-100
-// Autor: João Luz & Maria do Prado
+// Autor: Adalbery Castro, João Luz, Maria do Prado
 // Data: 11/30/2021
 // Versão: 0.0.1 
 
-#define byteExpiresTimer 8040 // Define o timer para 8,040 milisegundos 2x do tempo de tramissão
+#define byteExpiresTimer 16080 // Define o timer para 8,040 milisegundos 2x do tempo de tramissão
 
 #define rs485Comunication 3 // Define porta de que define o estado da comunicação rs485
 
@@ -20,7 +20,7 @@ int lastButtonState = LOW;
 /**--------------- **/
 
 
-bool stillWaitNextBit = true; // Variavel de controle de espera do proximo bit
+bool stillWaitNextBit = false; // Variavel de controle de espera do proximo bit
 
 struct CFP
 {
@@ -34,8 +34,9 @@ struct CFP
     // 0x04 - Zerar só totalizações
     // 0x0A - Ping 
   byte pkgToSend[5];  // Define globalmente o pacote que irá ser enviado;
-  byte pkgReceived[10]; // Define globalmente o pacote que irá ser recebido;
-  
+  byte pkgReceived[25]; // Define globalmente o pacote que irá ser recebido;
+  String operationMode;
+  int totalIn;
 };
 
 CFP cfpComponet; // Criado o componete cfp para controle;
@@ -147,7 +148,7 @@ void retrySendPkgToCfp() {
   {
     Serial.println("Max attempts errors");
     cfpComponet.sendRetries = 0;
-
+    stillWaitNextBit = false;
     /* void() do something after 3 errors  */
   }
   
@@ -164,23 +165,23 @@ void timerCallback()
   Serial.println("Package received:");
  
   byte auxReceivedBytesSum = 0;
-  byte lastValidReceivedByte;
+  byte lastValidReceivedByte = 0;
  
-  byte i = 0;
-  while (cfpComponet.pkgReceived[i] != 0x00) // Verifica até onde o pacote é valido, ou seja, não tem o valor 0
+  for (byte i = 0; i < sizeof cfpComponet.pkgReceived; i++)
   {
     Serial.println(cfpComponet.pkgReceived[i], HEX);
     auxReceivedBytesSum = auxReceivedBytesSum + cfpComponet.pkgReceived[i];
 
-    lastValidReceivedByte = cfpComponet.pkgReceived[i];
-
-    i++;
+    if (cfpComponet.pkgReceived[i] != 0x00)
+    {
+      lastValidReceivedByte = cfpComponet.pkgReceived[i];
+    }
   }
- 
-  Serial.println("-------------------");
 
-  auxReceivedBytesSum = auxReceivedBytesSum - lastValidReceivedByte; // Subtrai o ultimo valor do pacote da soma de todos os bits, já que o ultimo valor é checkSum.
+  Serial.println("-------------------");
   
+  auxReceivedBytesSum = auxReceivedBytesSum - lastValidReceivedByte; // Subtrai o ultimo valor do pacote da soma de todos os bits, já que o ultimo valor é checkSum.
+
   if (auxReceivedBytesSum == lastValidReceivedByte) // Se o checkSum for valido, o pacote recebido faz sentido e está habito a ser utilizado
   {
     Serial.println("valid");
