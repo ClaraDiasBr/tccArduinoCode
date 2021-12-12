@@ -5,6 +5,7 @@
 #include <Arduino.h>
 #include <HardwareSerial.h>
 
+/*Classe para funções de controle para o CFP*/
 class Cfp
 {
 
@@ -17,8 +18,10 @@ private:
     /*Methods*/
     
 public:
+    /* Variables*/ 
+    
+    /*Methods*/
     Cfp(int rs485Comunication);
-
     void sendPkg(byte address, byte operationCode);
     bool pkgValidator(byte pkg[], byte sizeOf);
 };

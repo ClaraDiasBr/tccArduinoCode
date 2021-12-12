@@ -2,12 +2,9 @@
 #include <Arduino.h>
 #include <HardwareSerial.h>
 
-byte receivedPkg[25];
-byte receivedByteIndex = 0x00;
 
 Cfp::Cfp(int rs485Comunication) {
   pinMode(rs485Comunication, OUTPUT);
-
   rs485ComunicationPin = rs485Comunication;
 }
 
@@ -19,18 +16,14 @@ bool Cfp::pkgValidator(byte pkg[], byte sizeOf) {
  
   for (byte i = 0; i < sizeOf; i++)
   {
-    Serial.println(pkg[i], HEX);
     auxReceivedBytesSum = auxReceivedBytesSum + pkg[i];
-
-    if (pkg[i] != 0x00)
-    {
-     lastValidReceivedBit = pkg[i];
-    }
+    if (pkg[i] != 0x00) lastValidReceivedBit = pkg[i];
   }
   
   auxReceivedBytesSum = auxReceivedBytesSum -lastValidReceivedBit; // Subtrai o ultimo valor do pacote da soma de todos os bits, já que o ultimo valor é checkSum.
-
-  if (auxReceivedBytesSum ==lastValidReceivedBit) valid = true; 
+ 
+  if ((auxReceivedBytesSum == lastValidReceivedBit) && (auxReceivedBytesSum != 0x00)) valid = true; 
+ 
   return valid;
 }
 
@@ -47,8 +40,8 @@ void Cfp::sendPkg(byte address, byte operationCode){
   }
   
   pkgToSend[4] = checkSum; //checksum
+
   Serial.println("Send pkg.");
-  
   digitalWrite(rs485ComunicationPin, HIGH);
   
   for (byte i = 0; i < sizeof(pkgToSend); i++)
@@ -56,9 +49,7 @@ void Cfp::sendPkg(byte address, byte operationCode){
     Serial1.write(pkgToSend[i]); // Envio de cada bit da mensagem
     Serial.println(pkgToSend[i], HEX);
   }
-
-  Serial.println("---------------");
   Serial1.flush();
   digitalWrite(rs485ComunicationPin, LOW);
-  receivedByteIndex = 0x00;
+  Serial.println("---------------");
 }
