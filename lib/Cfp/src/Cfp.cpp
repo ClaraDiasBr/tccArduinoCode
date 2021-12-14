@@ -53,3 +53,14 @@ void Cfp::sendPkg(byte address, byte operationCode){
   digitalWrite(rs485ComunicationPin, LOW);
   Serial.println("---------------");
 }
+
+/*
+Respostas: 
+- Lert contagem: 
+  pacote: {cfpAddress, contagemAtualDentro(3), contagemAtualFora(3), contagemTotalDentro(3), contagemTotalFora(3)}
+
+
+*/
+byte *getValueFromCfpResponse(byte pkg[], byte sizeOf) {
+   
+}

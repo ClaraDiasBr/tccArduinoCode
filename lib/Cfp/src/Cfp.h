@@ -24,6 +24,7 @@ public:
     Cfp(int rs485Comunication);
     void sendPkg(byte address, byte operationCode);
     bool pkgValidator(byte pkg[], byte sizeOf);
+    byte *getValueFromCfpResponse(byte pkg[], byte sizeOf);
 };
 
 #endif

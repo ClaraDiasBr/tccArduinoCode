@@ -1,6 +1,7 @@
 #include <Arduino.h>
 #include <Cfp.h>
 #include "TimerOne.h" // Biblioteca usada para o timer
+#include "TimerThree.h" // Biblioteca usada para o timer
 
 // button configs -----
 unsigned long lastDebounceTime = 0;  // the last time the output pin was toggled
@@ -17,11 +18,13 @@ struct CFPStruct
   int address; // Define globalmente o endereço do cpf
   int maxAttemptsErrors = 0; // Define globalmente o numero de retentativa de erros
   byte receivedByteIndex = 0; // Define globalmente o index do pacote recebido
-  byte operationCode; // Define globalmente o codigo de operação baseado na documentaça do cfp, hoje temos suporte para:   
+  byte operationCode; // Define globalmente o codigo de operação baseado na documentaça do cfp
   byte pkgToSend[5];  // Define globalmente o pacote que irá ser enviado;
   byte pkgReceived[25]; // Define globalmente o pacote que irá ser recebido;  
 };
 CFPStruct cfpComponent; // Criado o componete cfp para controle;
+
+
 /* ----- */
 
 /* Flux control variables*/
@@ -37,11 +40,7 @@ void  clearReceivedPackage() {
 }
 
 /*Função auxiliar para definir as variáveis de controle padrões para envio de pacotes.*/
-void setSendPkgParams(byte address, byte opertionCode, int maxAttemptsErrors = 0 ) {
-  cfpComponent.address = address;
-  cfpComponent.operationCode = opertionCode;
-  if (!(maxAttemptsErrors == 0)) cfpComponent.maxAttemptsErrors = maxAttemptsErrors;
-  
+void setSendPkgParams() {
   clearReceivedPackage();                                                    
   stillWaitNextBit = true;
 
@@ -53,7 +52,7 @@ void setSendPkgParams(byte address, byte opertionCode, int maxAttemptsErrors = 0
 void retrySendPkgToCfp() {
   if (attempts < cfpComponent.maxAttemptsErrors)
   {  
-    setSendPkgParams(cfpComponent.address, cfpComponent.operationCode);
+    setSendPkgParams();
     attempts++;
   } 
   else
@@ -89,7 +88,7 @@ void serialEvent1() {
   Function responable por, após o estouro do timer, se valido, realizar o fluxo de entender o pacote
   se não chamar o fluxo de retantativas
  */
-void timerCallback() {
+void receivedPkgTimerCallback() {
   Timer1.stop();
   stillWaitNextBit = false;
   Serial.println("timer-------");
@@ -107,35 +106,47 @@ void timerCallback() {
   }
 }
 
+void chronSendPkgTimerCallBack() {
+
+}
+
 void setup() {
-  Timer1.initialize(116080);
-  Timer1.stop();
-  Timer1.attachInterrupt(timerCallback);  // Define a função que irá ser executada a cada fim de espera do pacote 
+  cfpComponent.address = 0x01;
+  cfpComponent.operationCode = 0x03;
+  cfpComponent.maxAttemptsErrors = 2;
 
   Serial1.begin(9600);
   Serial.begin(9600);
+
+  Timer1.attachInterrupt(receivedPkgTimerCallback);  // Define a função que irá ser executada a cada fim de espera do pacote 
+  Timer1.initialize(116800);
+  Timer1.stop();
+
+  Timer3.attachInterrupt(setSendPkgParams);  // Define a função que irá ser executada a cada fim de espera do pacote 
+  Timer3.initialize(10000000); // periodo de envio de pacote, 10 segundos
+
   pinMode(testButton, INPUT);
 }
 
 
 void loop() {
 
-  int reading = digitalRead(testButton);  
-  if (reading != lastButtonState) {
-    // reset the debouncing timer
-    lastDebounceTime = millis();
-  }
-   if ((millis() - lastDebounceTime) > debounceDelay) {
-    if (reading != buttonState) {
-      buttonState = reading;
-      if (buttonState == HIGH) {    
-        cfpComponent.address = 0x01;
-        cfpComponent.operationCode = 0x03;
+  // int reading = digitalRead(testButton);  
+  // if (reading != lastButtonState) {
+  //   // reset no debouncing timer
+  //   lastDebounceTime = millis();
+  // }
+  //  if ((millis() - lastDebounceTime) > debounceDelay) {
+  //   if (reading != buttonState) {
+  //     buttonState = reading;
+  //     if (buttonState == HIGH) {    
+  //       cfpComponent.address = 0x01;
+  //       cfpComponent.operationCode = 0x03;
 
-        setSendPkgParams(cfpComponent.address, cfpComponent.operationCode, 3);
-      }
-    }
-  }
+  //       setSendPkgParams();
+  //     }
+  //   }
+  // }
  
-  lastButtonState = reading;
+  // lastButtonState = reading;
 }
