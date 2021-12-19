@@ -3,14 +3,6 @@
 #include "TimerOne.h" // Biblioteca usada para o timer
 #include "TimerThree.h" // Biblioteca usada para o timer
 
-// button configs -----
-unsigned long lastDebounceTime = 0;  // the last time the output pin was toggled
-unsigned long debounceDelay = 50;    // the debounce time; increase if the output flickers
-int testButton = 7;
-int buttonState;           
-int lastButtonState = LOW; 
-/**--------------- **/
-
 
 /* Cfp configs*/
 struct CFPStruct
@@ -40,7 +32,7 @@ void  clearReceivedPackage() {
 }
 
 /*Função auxiliar para definir as variáveis de controle padrões para envio de pacotes.*/
-void setSendPkgParams() {
+void sendPkgToCfp() {
   clearReceivedPackage();                                                    
   stillWaitNextBit = true;
 
@@ -51,8 +43,8 @@ void setSendPkgParams() {
 /* Função auxiliar para fazer retry em caso de erro */
 void retrySendPkgToCfp() {
   if (attempts < cfpComponent.maxAttemptsErrors)
-  {  
-    setSendPkgParams();
+  { 
+    sendPkgToCfp();
     attempts++;
   } 
   else
@@ -72,7 +64,6 @@ void retrySendPkgToCfp() {
 void serialEvent1() {
   byte incomingByte;
   if(stillWaitNextBit) {
-    Serial.println("receiving");
     while (Serial1.available())
     {
       incomingByte = Serial1.read();
@@ -85,7 +76,7 @@ void serialEvent1() {
 }
 
 /*
-  Function responable por, após o estouro do timer, se valido, realizar o fluxo de entender o pacote
+ Função responsável por, após o estouro do timer, se valido, realizar o fluxo de entender o pacote
   se não chamar o fluxo de retantativas
  */
 void receivedPkgTimerCallback() {
@@ -94,11 +85,18 @@ void receivedPkgTimerCallback() {
   Serial.println("timer-------");
   Serial.println("Package received:");
 
-  bool valid = cfp.pkgValidator(cfpComponent.pkgReceived, sizeof cfpComponent.pkgReceived);
+  bool valid = cfp.pkgValidator(cfpComponent.pkgReceived, sizeof cfpComponent.pkgReceived, cfpComponent.operationCode);
 
   if (valid)
   {
     Serial.println("valid");
+    cfp.getValuesFromCpfResponse(cfpComponent.pkgReceived, sizeof cfpComponent.pkgReceived);
+
+    Serial.println(cfp.actualIn);
+    Serial.println(cfp.actualOut);
+    Serial.println(cfp.totalIn);
+    Serial.println(cfp.totalOut);
+    
   } else
   {
     Serial.println("invalid");
@@ -106,47 +104,44 @@ void receivedPkgTimerCallback() {
   }
 }
 
-void chronSendPkgTimerCallBack() {
+/**
+ * Função responsável por, perguntar ao cfp numero de contagem
+*/
+void askTotalsToCfp() {
+  cfpComponent.operationCode = 0x02;
+  sendPkgToCfp();
+}
 
+/*
+Função responsável por zerar contagem
+*/
+void resetCounts() {
+  cfpComponent.operationCode = 0x03;
+  sendPkgToCfp();
+}
+
+/*
+Função responsável por zerar totais
+*/
+void resetTotals() {
+  cfpComponent.operationCode = 0x04;
+  sendPkgToCfp();
 }
 
 void setup() {
   cfpComponent.address = 0x01;
-  cfpComponent.operationCode = 0x03;
-  cfpComponent.maxAttemptsErrors = 2;
+  cfpComponent.operationCode = 0x02;
+  cfpComponent.maxAttemptsErrors = 3;
 
   Serial1.begin(9600);
   Serial.begin(9600);
 
   Timer1.attachInterrupt(receivedPkgTimerCallback);  // Define a função que irá ser executada a cada fim de espera do pacote 
-  Timer1.initialize(116800);
+  Timer1.initialize(232800);
   Timer1.stop();
 
-  Timer3.attachInterrupt(setSendPkgParams);  // Define a função que irá ser executada a cada fim de espera do pacote 
+  Timer3.attachInterrupt(askTotalsToCfp);  // Define a função que irá ser executada a cada fim de espera do pacote 
   Timer3.initialize(10000000); // periodo de envio de pacote, 10 segundos
-
-  pinMode(testButton, INPUT);
 }
 
-
-void loop() {
-
-  // int reading = digitalRead(testButton);  
-  // if (reading != lastButtonState) {
-  //   // reset no debouncing timer
-  //   lastDebounceTime = millis();
-  // }
-  //  if ((millis() - lastDebounceTime) > debounceDelay) {
-  //   if (reading != buttonState) {
-  //     buttonState = reading;
-  //     if (buttonState == HIGH) {    
-  //       cfpComponent.address = 0x01;
-  //       cfpComponent.operationCode = 0x03;
-
-  //       setSendPkgParams();
-  //     }
-  //   }
-  // }
- 
-  // lastButtonState = reading;
-}
+void loop() {}

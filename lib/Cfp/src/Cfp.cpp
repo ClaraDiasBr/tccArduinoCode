@@ -8,13 +8,16 @@ Cfp::Cfp(int rs485Comunication) {
   rs485ComunicationPin = rs485Comunication;
 }
 
-bool Cfp::pkgValidator(byte pkg[], byte sizeOf) {
+/*
+Função que valida  o pacote recebido do cfp
+*/
+bool Cfp::pkgValidator(byte pkg[], byte sizeOfPkg, byte operationCode) {
   bool valid = false;
  
   byte auxReceivedBytesSum = 0;
   byte lastValidReceivedBit = 0;
  
-  for (byte i = 0; i < sizeOf; i++)
+  for (byte i = 0; i < sizeOfPkg; i++)
   {
     auxReceivedBytesSum = auxReceivedBytesSum + pkg[i];
     if (pkg[i] != 0x00) lastValidReceivedBit = pkg[i];
@@ -23,10 +26,26 @@ bool Cfp::pkgValidator(byte pkg[], byte sizeOf) {
   auxReceivedBytesSum = auxReceivedBytesSum -lastValidReceivedBit; // Subtrai o ultimo valor do pacote da soma de todos os bits, já que o ultimo valor é checkSum.
  
   if ((auxReceivedBytesSum == lastValidReceivedBit) && (auxReceivedBytesSum != 0x00)) valid = true; 
- 
+  
+  switch (operationCode)
+  {
+  case 0x02: // Checa se a contagem tem falha ou não
+    if ((pkg[4] == 0x01 ) || (pkg[8] == 0x01) || (pkg[12] == 0x01 ) || (pkg[16] == 0x01)) valid = false;
+    break;
+  case 0x03: // Checa se o comando de zerar contagem falhou ou não
+  case 0x04: // Checa se o comando de zerar contagem falhou ou não
+    if (pkg[3] != 0x55) valid = false;
+    break;  
+  default:
+    break;
+  }
+  
   return valid;
 }
 
+/*
+Função que recebe o endereço cfp, o código de operação, e então manda o pacote
+*/
 void Cfp::sendPkg(byte address, byte operationCode){
   Serial.println("Making pkg");
 
@@ -55,12 +74,22 @@ void Cfp::sendPkg(byte address, byte operationCode){
 }
 
 /*
-Respostas: 
-- Lert contagem: 
-  pacote: {cfpAddress, contagemAtualDentro(3), contagemAtualFora(3), contagemTotalDentro(3), contagemTotalFora(3)}
-
-
+Função auxiliar para contar os valores do pacote recebido
 */
-byte *getValueFromCfpResponse(byte pkg[], byte sizeOf) {
-   
+void Cfp::getValuesFromCpfResponse(byte pkg[], byte sizeOfPkg) {
+  actualIn = 0;
+  actualOut = 0;
+  totalIn = 0;
+  totalOut = 0;
+
+  for (byte i = 0; i < sizeOfPkg; i++)
+  {
+    if ((i >= 4) && (i <=7)) actualIn = actualIn + pkg[i];
+    
+    if ((i >= 8) && (i <=11)) actualOut = actualOut + pkg[i];
+    
+    if ((i>=12) && (i<=15)) totalIn = totalIn + pkg[i];
+
+    if  ((i>=16) && (i <=19)) totalOut = totalOut + pkg[i];
+  }
 }

@@ -19,12 +19,15 @@ private:
     
 public:
     /* Variables*/ 
-    
+    unsigned long actualIn;
+    unsigned long actualOut;
+    unsigned long totalIn;
+    unsigned long totalOut;
     /*Methods*/
     Cfp(int rs485Comunication);
     void sendPkg(byte address, byte operationCode);
-    bool pkgValidator(byte pkg[], byte sizeOf);
-    byte *getValueFromCfpResponse(byte pkg[], byte sizeOf);
+    bool pkgValidator(byte pkg[], byte sizeOfPkg, byte operationCode);
+    void getValuesFromCpfResponse(byte pkg[], byte sizeOfPkg);
 };
 
 #endif
